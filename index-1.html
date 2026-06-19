@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Timeleyi Connect 💬</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono&display=swap');
 
@@ -32,9 +33,9 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      margin: 0;
     }
 
-    /* ── ENTER SCREEN ── */
     #enter-screen {
       display: flex;
       flex-direction: column;
@@ -116,14 +117,12 @@
     .btn-enter:hover { opacity: 0.9; }
     .btn-enter:active { transform: scale(0.98); }
 
-    /* ── CHAT SCREEN ── */
     #chat-screen {
       display: none;
       flex-direction: column;
       height: 100dvh;
     }
 
-    /* Header */
     .chat-header {
       display: flex;
       align-items: center;
@@ -172,7 +171,6 @@
       border: 1px solid var(--border);
     }
 
-    /* Messages area */
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -187,28 +185,6 @@
     #messages::-webkit-scrollbar-track { background: transparent; }
     #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-    /* Date separator */
-    .date-sep {
-      text-align: center;
-      font-size: 11px;
-      color: var(--text-muted);
-      margin: 10px 0 4px;
-      position: relative;
-    }
-
-    .date-sep::before, .date-sep::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      width: 30%;
-      height: 1px;
-      background: var(--border);
-    }
-
-    .date-sep::before { left: 0; }
-    .date-sep::after { right: 0; }
-
-    /* Bubble */
     .msg-row {
       display: flex;
       flex-direction: column;
@@ -261,11 +237,9 @@
       padding: 0 4px;
     }
 
-    /* Consecutive messages tighten radius */
     .msg-row.me .bubble + .bubble { border-top-right-radius: 4px; }
     .msg-row.them .bubble + .bubble { border-top-left-radius: 4px; }
 
-    /* Typing indicator */
     #typing-indicator {
       padding: 0 16px 8px;
       font-size: 12px;
@@ -297,7 +271,6 @@
       30% { transform: translateY(-4px); }
     }
 
-    /* Input bar */
     .input-bar {
       display: flex;
       align-items: center;
@@ -350,7 +323,6 @@
       fill: white;
     }
 
-    /* Empty state */
     .empty-state {
       flex: 1;
       display: flex;
@@ -364,7 +336,6 @@
 
     .empty-state .emoji { font-size: 36px; }
 
-    /* Error toast */
     #toast {
       position: fixed;
       bottom: 80px;
@@ -390,7 +361,6 @@
       .msg-row { max-width: 88%; }
     }
 
-    /* ── NEW MESSAGE FLASH ── */
     @keyframes flashBg {
       0%   { background: var(--bg); }
       30%  { background: #2a1a40; }
@@ -401,7 +371,6 @@
       animation: flashBg 0.6s ease;
     }
 
-    /* ── UNREAD BADGE on tab (visual cue) ── */
     .new-msg-banner {
       position: fixed;
       top: 60px;
@@ -423,6 +392,15 @@
     .new-msg-banner.show {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
+    }
+
+    /* Loading state */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: var(--text-muted);
     }
   </style>
 </head>
@@ -447,7 +425,7 @@
     <div class="header-avatar">💑</div>
     <div class="header-info">
       <h2>Timeleyi Connect</h2>
-      <span>● Private chat</span>
+      <span id="status-text">● Connecting...</span>
     </div>
     <div class="header-right">
       <div class="username-badge" id="my-name-badge"></div>
@@ -477,12 +455,22 @@
 <div class="new-msg-banner" id="msg-banner"></div>
 
 <!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import {
-    getDatabase, ref, push, onChildAdded, serverTimestamp, onValue, set, remove
-  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
+<script>
+  // Check if Firebase loaded
+  if (typeof firebase === 'undefined') {
+    document.getElementById('enter-screen').innerHTML = `
+      <div style="text-align:center;color:#ef4444;">
+        <h2>⚠️ Firebase failed to load</h2>
+        <p>Please check your internet connection and refresh.</p>
+      </div>
+    `;
+    throw new Error('Firebase failed to load');
+  }
+
+  // Firebase configuration
   const firebaseConfig = {
     apiKey: "AIzaSyAGcOzvSEnRmF6Gj5TsT1_oKXOD-reOmqU",
     authDomain: "timeleyi-connect.firebaseapp.com",
@@ -493,8 +481,34 @@
     appId: "1:1025662784623:web:c571870318571a0609e99a"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+  try {
+    firebase.initializeApp(firebaseConfig);
+    console.log('✅ Firebase initialized successfully');
+  } catch (e) {
+    console.error('❌ Firebase initialization error:', e);
+    document.getElementById('enter-screen').innerHTML = `
+      <div style="text-align:center;color:#ef4444;">
+        <h2>⚠️ Firebase initialization failed</h2>
+        <p>${e.message}</p>
+      </div>
+    `;
+    throw e;
+  }
+
+  const db = firebase.database();
+
+  // Test database connection
+  db.ref('.info/connected').on('value', snap => {
+    if (snap.val() === true) {
+      console.log('✅ Connected to Firebase database');
+      document.getElementById('status-text').textContent = '● Online';
+      document.getElementById('status-text').style.color = '#4ade80';
+    } else {
+      console.log('❌ Disconnected from Firebase database');
+      document.getElementById('status-text').textContent = '● Offline';
+      document.getElementById('status-text').style.color = '#ef4444';
+    }
+  });
 
   let myName = "";
   let typingTimer = null;
@@ -503,42 +517,45 @@
   let originalTitle = "Timeleyi Connect 💬";
   let titleFlashInterval = null;
   let bannerTimer = null;
+  let audioCtx = null;
 
-  // ── NOTIFICATION SOUND (Web Audio API — no file needed) ──
+  // ── NOTIFICATION SOUND ──
   function playPing() {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-      // First tone
-      const o1 = ctx.createOscillator();
-      const g1 = ctx.createGain();
-      o1.connect(g1); g1.connect(ctx.destination);
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      
+      const o1 = audioCtx.createOscillator();
+      const g1 = audioCtx.createGain();
+      o1.connect(g1);
+      g1.connect(audioCtx.destination);
       o1.frequency.value = 880;
       o1.type = "sine";
-      g1.gain.setValueAtTime(0.3, ctx.currentTime);
-      g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      o1.start(ctx.currentTime);
-      o1.stop(ctx.currentTime + 0.3);
+      g1.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      g1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      o1.start(audioCtx.currentTime);
+      o1.stop(audioCtx.currentTime + 0.3);
 
-      // Second tone (harmony)
-      const o2 = ctx.createOscillator();
-      const g2 = ctx.createGain();
-      o2.connect(g2); g2.connect(ctx.destination);
+      const o2 = audioCtx.createOscillator();
+      const g2 = audioCtx.createGain();
+      o2.connect(g2);
+      g2.connect(audioCtx.destination);
       o2.frequency.value = 1100;
       o2.type = "sine";
-      g2.gain.setValueAtTime(0, ctx.currentTime);
-      g2.gain.setValueAtTime(0.2, ctx.currentTime + 0.15);
-      g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      o2.start(ctx.currentTime + 0.15);
-      o2.stop(ctx.currentTime + 0.5);
+      g2.gain.setValueAtTime(0, audioCtx.currentTime);
+      g2.gain.setValueAtTime(0.2, audioCtx.currentTime + 0.15);
+      g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+      o2.start(audioCtx.currentTime + 0.15);
+      o2.stop(audioCtx.currentTime + 0.5);
     } catch (e) {
-      // Audio not supported — silent fail
+      // Silent fail
     }
   }
 
   // ── TAB TITLE FLASH ──
   function flashTitle(senderName) {
-    if (document.hasFocus()) return; // Don't flash if tab is active
+    if (document.hasFocus()) return;
     let toggle = true;
     clearInterval(titleFlashInterval);
     titleFlashInterval = setInterval(() => {
@@ -546,7 +563,6 @@
       toggle = !toggle;
     }, 1000);
 
-    // Stop flashing when user returns to tab
     window.addEventListener("focus", () => {
       clearInterval(titleFlashInterval);
       document.title = originalTitle;
@@ -566,7 +582,7 @@
   // ── SCREEN FLASH ──
   function flashScreen() {
     document.body.classList.remove("flash");
-    void document.body.offsetWidth; // force reflow
+    void document.body.offsetWidth;
     document.body.classList.add("flash");
     setTimeout(() => document.body.classList.remove("flash"), 600);
   }
@@ -577,7 +593,7 @@
   // ── ENTER CHAT ──
   window.enterChat = function () {
     const input = document.getElementById("name-input");
-    const name = input.value.trim();
+    const name = input.value.trim().toUpperCase();
 
     if (!name) { showToast("Please enter your name"); return; }
 
@@ -589,7 +605,7 @@
     }
 
     myName = name;
-    typingRef = ref(db, `typing/${myName}`);
+    typingRef = db.ref(`typing/${myName}`);
 
     updateLastSeen();
     document.addEventListener("visibilitychange", () => {
@@ -608,27 +624,31 @@
 
   // ── LAST SEEN ──
   function updateLastSeen() {
-    set(ref(db, `lastSeen/${myName}`), Date.now());
+    try {
+      db.ref(`lastSeen/${myName}`).set(Date.now());
+    } catch (e) {
+      console.warn('Could not update last seen:', e);
+    }
   }
 
   function listenLastSeen() {
     const otherName = ALLOWED.find(n => n !== myName);
-    const statusEl = document.querySelector(".header-info span");
+    const statusEl = document.getElementById("status-text");
 
-    onValue(ref(db, `lastSeen/${otherName}`), snapshot => {
+    db.ref(`lastSeen/${otherName}`).on('value', snapshot => {
       const ts = snapshot.val();
       if (!ts) {
+        statusEl.textContent = `${otherName} hasn't joined yet`;
         statusEl.style.color = "#7b7a90";
-        statusEl.textContent = otherName + " hasn\'t joined yet";
         return;
       }
       const diff = Date.now() - ts;
       if (diff < 2 * 60 * 1000) {
-        statusEl.style.color = "#4ade80";
         statusEl.textContent = "● Online";
+        statusEl.style.color = "#4ade80";
       } else {
-        statusEl.style.color = "#7b7a90";
         statusEl.textContent = "Last seen " + formatLastSeen(ts);
+        statusEl.style.color = "#7b7a90";
       }
     });
   }
@@ -642,13 +662,12 @@
     return d.toLocaleDateString([], { weekday: "short" }) + " at " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  // Allow Enter key on name input
   document.getElementById("name-input").addEventListener("keydown", e => {
     if (e.key === "Enter") window.enterChat();
   });
 
   // ── SEND MESSAGE ──
-  window.sendMessage = async function () {
+  window.sendMessage = function () {
     const input = document.getElementById("msg-input");
     const text = input.value.trim();
     if (!text) return;
@@ -658,13 +677,14 @@
     clearTyping();
 
     try {
-      await push(ref(db, "messages"), {
+      db.ref("messages").push({
         name: myName,
-        text,
-        time: serverTimestamp()
+        text: text,
+        time: firebase.database.ServerValue.TIMESTAMP
       });
     } catch (err) {
       showToast("Failed to send. Check connection.");
+      console.error("Send error:", err);
     }
   };
 
@@ -672,13 +692,15 @@
   function listenMessages() {
     const msgContainer = document.getElementById("messages");
 
-    onChildAdded(ref(db, "messages"), snapshot => {
-      const { name, text, time } = snapshot.val();
+    db.ref("messages").on('child_added', snapshot => {
+      const data = snapshot.val();
+      if (!data) return;
+      
+      const { name, text, time } = data;
       const isMe = name === myName;
       const emptyState = document.getElementById("empty-state");
       if (emptyState) emptyState.remove();
 
-      // 🔔 Notify only for incoming messages, skip history on first load
       if (!isFirstLoad && !isMe) {
         playPing();
         flashScreen();
@@ -708,9 +730,11 @@
 
       msgContainer.appendChild(row);
       msgContainer.scrollTop = msgContainer.scrollHeight;
+    }, error => {
+      console.error("Message listener error:", error);
+      showToast("Connection issue - please refresh");
     });
 
-    // After 2s, all existing messages are loaded — new ones are truly new
     setTimeout(() => { isFirstLoad = false; }, 2000);
   }
 
@@ -718,14 +742,14 @@
   const msgInput = document.getElementById("msg-input");
 
   msgInput.addEventListener("input", () => {
-    // Auto resize textarea
     msgInput.style.height = "auto";
     msgInput.style.height = Math.min(msgInput.scrollHeight, 100) + "px";
 
-    // Typing signal
-    if (typingRef) set(typingRef, true);
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(clearTyping, 2000);
+    if (typingRef) {
+      typingRef.set(true);
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(clearTyping, 2000);
+    }
   });
 
   msgInput.addEventListener("keydown", e => {
@@ -736,11 +760,13 @@
   });
 
   function clearTyping() {
-    if (typingRef) remove(typingRef);
+    if (typingRef) {
+      typingRef.remove().catch(() => {});
+    }
   }
 
   function listenTyping() {
-    onValue(ref(db, "typing"), snapshot => {
+    db.ref("typing").on('value', snapshot => {
       const data = snapshot.val() || {};
       const others = Object.keys(data).filter(n => n !== myName);
       const indicator = document.getElementById("typing-indicator");
@@ -770,6 +796,9 @@
     toast.classList.add("show");
     setTimeout(() => toast.classList.remove("show"), 3000);
   }
+
+  console.log("✅ Timeleyi Connect loaded successfully!");
+  console.log("ℹ️ Browser extension warnings above can be ignored.");
 </script>
 </body>
 </html>
